@@ -1,55 +1,61 @@
-FROM ubuntu:16.04
-
-MAINTAINER Lilia Sfaxi <liliasfaxi@gmail.com>
+FROM ubuntu:latest
 
 WORKDIR /root
 
-# install openssh-server, openjdk and wget
-RUN apt-get update && apt-get install -y openssh-server openjdk-8-jdk wget vim
+# install requisites
+RUN apt-get update && apt-get install -y openssh-server openjdk-8-jdk ssh wget curl vim python3 && \
+    rm -rf /var/lib/apt/lists/*
+RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
+    python3 get-pip.py && \
+    rm get-pip.py && \
+    python3 -m pip install --upgrade pip setuptools
 
-# install hadoop 2.7.2
-RUN wget https://github.com/kiwenlau/compile-hadoop/releases/download/2.7.2/hadoop-2.7.2.tar.gz && \
-    tar -xzvf hadoop-2.7.2.tar.gz && \
-    mv hadoop-2.7.2 /usr/local/hadoop && \
-    rm hadoop-2.7.2.tar.gz
+# Install Hadoop
+RUN wget https://archive.apache.org/dist/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz && \
+    tar -xzf hadoop-3.3.6.tar.gz && \
+    mv hadoop-3.3.6 /usr/local/hadoop && \
+    rm hadoop-3.3.6.tar.gz
 
-# install spark
-RUN wget https://d3kbcqa49mib13.cloudfront.net/spark-2.2.0-bin-hadoop2.7.tgz && \
-    tar -xvf spark-2.2.0-bin-hadoop2.7.tgz && \
-    mv spark-2.2.0-bin-hadoop2.7 /usr/local/spark && \
-    rm spark-2.2.0-bin-hadoop2.7.tgz
+# Install Spark
+RUN wget https://mirror.lyrahosting.com/apache/spark/spark-3.5.0/spark-3.5.0-bin-hadoop3.tgz && \
+    tar -xzf spark-3.5.0-bin-hadoop3.tgz && \
+    mv spark-3.5.0-bin-hadoop3 /usr/local/spark && \
+    rm spark-3.5.0-bin-hadoop3.tgz
 
-# install kafka
-RUN wget https://archive.apache.org/dist/kafka/1.0.2/kafka_2.11-1.0.2.tgz && \
-    tar -xzvf kafka_2.11-1.0.2.tgz && \
-    mv kafka_2.11-1.0.2 /usr/local/kafka && \
-    rm kafka_2.11-1.0.2.tgz
 
-# install hbase
-RUN wget https://archive.apache.org/dist/hbase/1.4.9/hbase-1.4.9-bin.tar.gz  && \ 
-    tar -zxvf hbase-1.4.9-bin.tar.gz && \
-    mv hbase-1.4.9 /usr/local/hbase && \
-    rm hbase-1.4.9-bin.tar.gz
+# Install pyspark
+RUN pip install pyspark 
 
-# copy the test files
-RUN wget https://mohetn-my.sharepoint.com/:t:/g/personal/lilia_sfaxi_insat_u-carthage_tn/EWdosZTuyDtEiqcjpqbY_loBlfQbIQWp8Zq7PPKSAE1sjQ?e=O3TNLR && \ 
-    wget  https://mohetn-my.sharepoint.com/:t:/g/personal/lilia_sfaxi_insat_u-carthage_tn/EexZfjSnlShAqDig-0efjbkBJRiHqN0POQt0t4fvXhb7Dw?e=af6lAZ
+# Install Kafka
+RUN wget https://archive.apache.org/dist/kafka/3.6.1/kafka_2.13-3.6.1.tgz && \
+    tar -xzf kafka_2.13-3.6.1.tgz && \
+    mv kafka_2.13-3.6.1 /usr/local/kafka && \
+    rm kafka_2.13-3.6.1.tgz
+
+# Install HBase
+RUN wget https://archive.apache.org/dist/hbase/2.5.8/hbase-2.5.8-hadoop3-bin.tar.gz && \ 
+    tar -xzf hbase-2.5.8-hadoop3-bin.tar.gz && \
+    mv hbase-2.5.8-hadoop3 /usr/local/hbase && \
+    rm hbase-2.5.8-hadoop3-bin.tar.gz
 
 
 # set environment variables
 ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 
-ENV HADOOP_HOME=/usr/local/hadoop 
+ENV HADOOP_HOME=/usr/local/hadoop
+ENV YARN_HOME=/usr/local/hadoop
 ENV SPARK_HOME=/usr/local/spark
 ENV KAFKA_HOME=/usr/local/kafka
 ENV HADOOP_CONF_DIR=/usr/local/hadoop/etc/hadoop
+ENV YARN_CONF_DIR=/usr/local/hadoop/etc/hadoop 
 ENV LD_LIBRARY_PATH=/usr/local/hadoop/lib/native:$LD_LIBRARY_PATH
 ENV HBASE_HOME=/usr/local/hbase
 ENV CLASSPATH=$CLASSPATH:/usr/local/hbase/lib/*
 ENV PATH=$PATH:/usr/local/hadoop/bin:/usr/local/hadoop/sbin:/usr/local/spark/bin:/usr/local/kafka/bin:/usr/local/hbase/bin 
 
 # ssh without key
-RUN ssh-keygen -t rsa -f ~/.ssh/id_rsa -P '' && \
-    cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+RUN ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa && \
+    cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys && \
+    chmod 0600 ~/.ssh/authorized_keys
 
 RUN mkdir -p ~/hdfs/namenode && \
     mkdir -p ~/hdfs/datanode && \
@@ -63,13 +69,15 @@ RUN mv /tmp/ssh_config ~/.ssh/config && \
     mv /tmp/core-site.xml $HADOOP_HOME/etc/hadoop/core-site.xml && \
     mv /tmp/mapred-site.xml $HADOOP_HOME/etc/hadoop/mapred-site.xml && \
     mv /tmp/yarn-site.xml $HADOOP_HOME/etc/hadoop/yarn-site.xml && \
-    mv /tmp/slaves $HADOOP_HOME/etc/hadoop/slaves && \
+    mv /tmp/workers $HADOOP_HOME/etc/hadoop/workers && \
     mv /tmp/start-kafka-zookeeper.sh ~/start-kafka-zookeeper.sh && \
     mv /tmp/start-hadoop.sh ~/start-hadoop.sh && \
     mv /tmp/run-wordcount.sh ~/run-wordcount.sh && \
     mv /tmp/spark-defaults.conf $SPARK_HOME/conf/spark-defaults.conf && \
     mv /tmp/hbase-env.sh $HBASE_HOME/conf/hbase-env.sh && \
-    mv /tmp/hbase-site.xml $HBASE_HOME/conf/hbase-site.xml
+    mv /tmp/hbase-site.xml $HBASE_HOME/conf/hbase-site.xml &&\
+    mv /tmp/purchases.txt /root/purchases.txt && \
+    mv /tmp/purchases2.txt /root/purchases2.txt 
 
 RUN chmod +x ~/start-hadoop.sh && \
     chmod +x ~/start-kafka-zookeeper.sh && \
@@ -81,5 +89,4 @@ RUN chmod +x ~/start-hadoop.sh && \
 RUN /usr/local/hadoop/bin/hdfs namenode -format
 
 CMD [ "sh", "-c", "service ssh start; bash"]
-
 
